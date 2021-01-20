@@ -16,14 +16,14 @@ $obj=json_decode($p);
 
 $time=time();
 $countT=0;
-while (true) {
-$d=date("d/m/Y", $time);
-$req="http://www.cbr.ru/scripts/xml_metall.asp?date_req1=".$d."&date_req2=".$d;
+while (true) { // торги по золоту выставляются не за каждый день (выходные и др.) поэтому берём за последнюю имеющуюся дату
+  $d=date("d/m/Y", $time);
+  $req="http://www.cbr.ru/scripts/xml_metall.asp?date_req1=".$d."&date_req2=".$d;
 
-$p=file_get_contents($req); // курс GOLD-RUB
-$count++;
-$t=explode("<Sell>", $p);
-$t=explode("</Sell>", $t[1]);
+  $p=file_get_contents($req); // курс GOLD-RUB
+  $count++;
+  $t=explode("<Sell>", $p);
+  $t=explode("</Sell>", $t[1]);
   if (isset($t) && $t[0]<>0 || $count>7) {
       break;
   } else {
@@ -35,7 +35,7 @@ $golos=$k[1]*$obj->GLS_BTS->last_price; // стоимость GOLOS в битш�
 $gold=(float)str_replace(",", ".", $t[0])/1000; // стоимость милиграмма золоота в рублях
 $koef=round($golos/$gold, 3); // соотношение GOLOS/GBG
 
-$obj='{"GOLOS":'.$golos.', "GOLD":'.$gold.', "DATEG":'.$d.', "FEED":'.$koef.'}';
+$obj='{"GOLOS":'.$golos.', "GOLD":'.$gold.', "DATEG":"'.$d.'", "FEED":'.$koef.'}';
 
 echo $obj;
 
