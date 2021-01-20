@@ -15,7 +15,7 @@ $p=file_get_contents("https://ticker.rudex.org/api/v1/ticker"); // курс GOLO
 $obj=json_decode($p);
 
 $time=time();
-$countT=0;
+$count=0;
 while (true) { // торги по золоту выставляются не за каждый день (выходные и др.) поэтому берём за последнюю имеющуюся дату
   $d=date("d/m/Y", $time);
   $req="http://www.cbr.ru/scripts/xml_metall.asp?date_req1=".$d."&date_req2=".$d;
@@ -24,7 +24,7 @@ while (true) { // торги по золоту выставляются не з�
   $count++;
   $t=explode("<Sell>", $p);
   $t=explode("</Sell>", $t[1]);
-  if (isset($t) && $t[0]<>0 || $count>7) {
+  if (isset($t) && $t[0]<>0 || $count>14) {
       break;
   } else {
       $time=$time-24*60*60;
