@@ -1,6 +1,6 @@
 <?php
 
-// Формирование price-feed для GOLOS относительно BTS
+// Формирование price-feed для GOLOS относительно BTS из альтернативных источников
 
 $p=file_get_contents("https://www.calc.ru/kurs-BTS-RUB.html"); // курс BTS-RUB
 
