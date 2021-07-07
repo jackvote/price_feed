@@ -38,5 +38,5 @@ $koef=round($golos/$gold, 3); // соотношение GOLOS/GBG
 $obj='{"GOLOS":'.$golos.', "GOLD":'.$gold.', "DATEG":"'.$d.'", "FEED":'.$koef.'}';
 
 echo $obj;
-
+// (с) https://github.com/jackvote
 ?>
