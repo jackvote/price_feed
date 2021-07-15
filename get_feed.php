@@ -2,20 +2,16 @@
 
 // Формирование price-feed для GOLOS относительно BTS из альтернативных источников
 
-$p=file_get_contents("https://www.calc.ru/kurs-BTS-RUB.html"); // курс BTS-RUB
-
-$t=explode("(RUB)</b><br><b>", $p);
-
-$t=explode("(BTS)</b>", $t[0]);
-
-$h=preg_match("/(\d+\.\d+).+/i", strip_tags($t[1]), $k);
+$p=file_get_contents("https://api.cryptonator.com/api/ticker/bts-rur"); // курс BTS-RUB
+$obj=json_decode($p);
+$bts=$obj->ticker->price;
 
 $p=file_get_contents("https://ticker.rudex.org/api/v1/ticker"); // курс GOLOS-BTS
-
 $obj=json_decode($p);
 
 $time=time();
 $count=0;
+
 while (true) { // торги по золоту выставляются не за каждый день (выходные и др.) поэтому берём за последнюю имеющуюся дату
   $d=date("d/m/Y", $time);
   $req="http://www.cbr.ru/scripts/xml_metall.asp?date_req1=".$d."&date_req2=".$d;
@@ -31,11 +27,12 @@ while (true) { // торги по золоту выставляются не з�
   }
 }
 
-$golos=$k[1]*$obj->GLS_BTS->last_price; // стоимость GOLOS в битшарах умножаем на курс битшар к рублю - получаем стоимость GOLOS в рублях
+$golos=$bts * $obj->GLS_BTS->last_price; // стоимость GOLOS в битшарах умножаем на курс битшар к рублю - получаем стоимость GOLOS в рублях
 $gold=(float)str_replace(",", ".", $t[0])/1000; // стоимость милиграмма золота в рублях
-$koef=round($golos/$gold, 3); // соотношение GOLOS/GBG
 
-$obj='{"GOLOS":'.$golos.', "GOLD":'.$gold.', "DATEG":"'.$d.'", "FEED":'.$koef.'}';
+$feed=round($golos/$gold, 3); // соотношение GOLOS/GBG
+
+$obj='{"GOLOS":'.$golos.', "GOLD":'.$gold.', "DATEG":"'.$d.'", "FEED":'.$feed.'}';
 
 echo $obj;
 // (с) https://github.com/jackvote
