@@ -3,10 +3,24 @@
 // Формирование price-feed для GOLOS относительно BTS из альтернативных источников
 
 // изменили сайт, в связи с тем, что на cryptocharts после 10.05.2022 курс BTS не отслеживается
-$p=file_get_contents("https://pokur.su/bts/rub/1/"); // курс BTS-RUB
-$t=explode("bitshares в рублях на сегодня составляет", $p);
-$t=explode(" ", $t[1]);
-$bts=(float)str_replace(",", ".", $t[1]);
+// https://pokur.su поставил каптчу, поэтому возвращаемся к cryptocharts через CURL 01.04.2024
+$url = 'https://cryptocharts.ru/bitshares/'; // URL, к которому вы отправляете запрос
+$ch = curl_init($url); // Инициализируем cURL-сессию
+
+// Установка параметров запроса
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true); // Указываем, что хотим получить результат запроса возвращаемый в качестве возвращаемого значения функции curl_exec
+curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'); // Устанавливаем заголовок User-Agent для имитации браузера
+// Добавление других параметров запроса...
+
+$p = curl_exec($ch); // Выполняем запрос
+curl_close($ch); // Закрываем cURL-сессию
+//$p=iconv("utf-8", "windows-1251", $p);
+$p=mb_convert_encoding($p, "windows-1251", "utf-8");
+
+// Обрабатываем полученный результат
+$t=explode("Стоимость BitShares (BTS) на текущий момент составляет <b>", $p);
+$t=explode("</b> RUB", $t[1]);
+$bts=(float)str_replace(",", ".", $t[0]);
 
 $p=file_get_contents("https://ticker.rudex.org/api/v1/ticker"); // курс GOLOS-BTS
 $obj=json_decode($p);
