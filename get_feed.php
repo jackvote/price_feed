@@ -1,10 +1,8 @@
 <?php
-
 // Формирование price-feed для GOLOS относительно BTS из альтернативных источников
 
-// изменили сайт, в связи с тем, что на cryptocharts после 10.05.2022 курс BTS не отслеживается
-// https://pokur.su поставил каптчу, поэтому возвращаемся к cryptocharts через CURL 01.04.2024
-$url = 'https://cryptocharts.ru/bitshares/'; // URL, к которому вы отправляете запрос
+// cryptocharts.ru перекрыл доступ ботам в очередной раз. Меняю ресурс для получеиня курса
+$url="https://coincodex.com/convert/bitshares/rub/"; // URL, к которому вы отправляете запрос
 $ch = curl_init($url); // Инициализируем cURL-сессию
 
 // Установка параметров запроса
@@ -14,13 +12,15 @@ curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) A
 
 $p = curl_exec($ch); // Выполняем запрос
 curl_close($ch); // Закрываем cURL-сессию
-//$p=iconv("utf-8", "windows-1251", $p);
-$p=mb_convert_encoding($p, "windows-1251", "utf-8");
 
 // Обрабатываем полученный результат
-$t=explode("Стоимость BitShares (BTS) на текущий момент составляет <b>", $p);
-$t=explode("</b> RUB", $t[1]);
-$bts=(float)str_replace(",", ".", $t[0]);
+//$p=iconv("utf-8", "windows-1251", $p); // выбор библиотеки перекодировки
+//$p=mb_convert_encoding($p, "windows-1251", "utf-8"); // исходники уже в UTF, осталяю строку, если опять прийдётся менять url
+
+// Поиск соответствия
+$regex = '/BTS to (\d*\.?\d+)\s*RUB./';
+preg_match($regex, $p, $matches);
+$bts = $matches[1];
 
 $p=file_get_contents("https://ticker.rudex.org/api/v1/ticker"); // курс GOLOS-BTS
 $obj=json_decode($p);
@@ -31,7 +31,8 @@ $count=0;
 while (true) { // торги по золоту выставляются не за каждый день (выходные и др.) поэтому берём за последнюю имеющуюся дату
   $d=date("d/m/Y", $time);
   $req="http://www.cbr.ru/scripts/xml_metall.asp?date_req1=".$d."&date_req2=".$d;
-
+//  http://www.cbr.ru/scripts/xml_metall.asp?date_req1=01/07/2001&date_req2=13/07/2001
+//  $req="https://cbr.ru/hd_base/metall/metall_base_new/?UniDbQuery.Posted=True&UniDbQuery.From=".$d."&UniDbQuery.To=".$d."&UniDbQuery.Gold=true&UniDbQuery.so=1";
   $p=file_get_contents($req); // курс GOLD-RUB
   $count++;
   $t=explode("<Sell>", $p);
@@ -43,6 +44,7 @@ while (true) { // торги по золоту выставляются не з�
   }
 }
 
+//var_dump($obj->GLS_BTS->last_price);
 $golos=$bts * (float)$obj->GLS_BTS->last_price; // стоимость GOLOS в битшарах умножаем на курс битшар к рублю - получаем стоимость GOLOS в рублях
 $gold=(float)str_replace(",", ".", $t[0])/1000; // стоимость милиграмма золота в рублях
 
