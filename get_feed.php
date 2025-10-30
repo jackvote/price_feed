@@ -1,56 +1,65 @@
 <?php
-// Формирование price-feed для GOLOS относительно BTS из альтернативных источников
+// Формирование price-feed для GOLOS относительно USDT из альтернативных источников
 
-// cryptocharts.ru перекрыл доступ ботам в очередной раз. Меняю ресурс для получения курса
-$url="https://coincodex.com/convert/bitshares/rub/"; // URL, к которому вы отправляете запрос
-$ch = curl_init($url); // Инициализируем cURL-сессию
-
-// Установка параметров запроса
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true); // Указываем, что хотим получить результат запроса возвращаемый в качестве возвращаемого значения функции curl_exec
-curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'); // Устанавливаем заголовок User-Agent для имитации браузера
-// Добавление других параметров запроса...
-
-$p = curl_exec($ch); // Выполняем запрос
-curl_close($ch); // Закрываем cURL-сессию
-
-// Обрабатываем полученный результат
-//$p=iconv("utf-8", "windows-1251", $p); // выбор библиотеки перекодировки
-//$p=mb_convert_encoding($p, "windows-1251", "utf-8"); // исходники уже в UTF, осталяю строку, если опять прийдётся менять url
-
-// Поиск соответствия
-$regex = '/BTS to (\d*\.?\d+)\s*RUB./';
-preg_match($regex, $p, $matches);
-$bts = $matches[1];
-
-$p=file_get_contents("https://ticker.rudex.org/api/v1/ticker"); // курс GOLOS-BTS
-$obj=json_decode($p);
-
-$time=time();
-$count=0;
-
-while (true) { // торги по золоту выставляются не за каждый день (выходные и др.) поэтому берём за последнюю имеющуюся дату
-  $d=date("d/m/Y", $time);
-  $req="http://www.cbr.ru/scripts/xml_metall.asp?date_req1=".$d."&date_req2=".$d;
-//  http://www.cbr.ru/scripts/xml_metall.asp?date_req1=01/07/2001&date_req2=13/07/2001
-//  $req="https://cbr.ru/hd_base/metall/metall_base_new/?UniDbQuery.Posted=True&UniDbQuery.From=".$d."&UniDbQuery.To=".$d."&UniDbQuery.Gold=true&UniDbQuery.so=1";
-  $p=file_get_contents($req); // курс GOLD-RUB
-  $count++;
-  $t=explode("<Sell>", $p);
-  $t=explode("</Sell>", $t[1]);
-  if (isset($t) && $t[0]<>0 || $count>14) {
-      break;
-  } else {
-      $time=$time-24*60*60;
-  }
+// Part I: Получение курса USDT-RUB с CoinGecko API
+$url = "https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=rub"; // API-запрос для курса USDT/RUB
+$p = file_get_contents($url); // Загружаем JSON с API
+if (!$p) {
+    die("Ошибка: Не удалось загрузить данные с CoinGecko API.\n");
 }
 
-//var_dump($obj->GLS_BTS->last_price);
-$golos=$bts * (float)$obj->GLS_BTS->last_price; // стоимость GOLOS в битшарах умножаем на курс битшар к рублю - получаем стоимость GOLOS в рублях
-$gold=(float)str_replace(",", ".", $t[0])/1000; // стоимость милиграмма золота в рублях
+$data = json_decode($p, true);
+if (json_last_error() !== JSON_ERROR_NONE || !isset($data['tether']['rub'])) {
+    die("Ошибка: Не удалось декодировать JSON API или найти курс USDT/RUB.\n");
+}
 
-$feed=round($golos/$gold, 3); // соотношение GOLOS/GBG
+$usdt = (float) $data['tether']['rub']; // Стоимость 1 USDT в RUB
+// echo "Курс USDT/RUB: $usdt\n"; // Лог для отладки
 
-$obj='{"GOLOS":'.$golos.', "GOLD":'.$gold.', "DATEG":"'.$d.'", "FEED":'.$feed.'}';
+// Part II: Получение курса GOLOS/USDT и GOLD/RUB
+$p = file_get_contents("https://ticker.rudex.org/api/v1/ticker"); // Курс GOLOS/USDT
+if (!$p) {
+    die("Ошибка: Не удалось загрузить ticker Rudex.\n");
+}
+$obj = json_decode($p);
+if (!$obj || !isset($obj->GLS_USDT->last_price)) {
+    die("Ошибка: Не удалось декодировать JSON Rudex или найти GLS_USDT.\n");
+}
+
+$time = time();
+$count = 0;
+
+while (true) { // Торги по золоту не каждый день, берём последнюю доступную дату
+    $d = date("d/m/Y", $time);
+    $req = "http://www.cbr.ru/scripts/xml_metall.asp?date_req1=" . $d . "&date_req2=" . $d; // Запрос к ЦБ РФ
+    $p = file_get_contents($req); // Курс GOLD/RUB
+    if (!$p) {
+        $time = $time - 24 * 60 * 60; // Минус день
+        $count++;
+        if ($count > 14) {
+            die("Ошибка: Не удалось найти курс золота за последние 14 дней.\n");
+        }
+        continue;
+    }
+    $count++;
+    $t = explode("<Sell>", $p);
+    $t = explode("</Sell>", $t[1]);
+    if (isset($t[0]) && $t[0] != 0 && $t[0] !== '') {
+        break;
+    } elseif ($count > 14) {
+        die("Ошибка: Не удалось найти курс золота за последние 14 дней.\n");
+    } else {
+        $time = $time - 24 * 60 * 60; // Минус день
+    }
+}
+
+$golos = $usdt * (float) $obj->GLS_USDT->last_price; // Стоимость GOLOS в USDT умножаем на курс USDT к RUB - получаем стоимость GOLOS в RUB
+$gold = (float) str_replace(",", ".", $t[0]) / 1000; // Стоимость миллиграмма золота в RUB
+
+$feed = round($golos / $gold, 3); // Соотношение GOLOS/GBG
+
+// Вывод JSON с добавлением USDT
+$obj = '{"GOLOS":' . $golos . ', "USDT":' . $usdt . ', "GOLD":' . $gold . ', "DATEG":"' . $d . '", "FEED":' . $feed . '}';
 
 echo $obj;
 // (с) https://github.com/jackvote
